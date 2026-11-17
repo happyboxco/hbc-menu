@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Fredoka:wght@400;500;600&family=Sorts+Mill+Goudy&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=Courgette&family=Dancing+Script:wght@600;700&family=Fredoka:wght@400;500;600&family=Kalam:wght@400;700&family=Sorts+Mill+Goudy&display=swap" rel="stylesheet">
 <style>
 :root{--g:#3f7a1f;--g2:#62a832;--o:#ff7a28;--r:#e5262d;--bg:#eef4e6;--card:#fff;--ink:#23301b;--mut:#6b7a62;--line:#dfe8d6}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -40,7 +40,7 @@ textarea{resize:vertical;min-height:64px}
 .opts{display:flex;gap:6px;margin:7px 0 0 28px;flex-wrap:wrap}
 .chip{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:5px 11px;font:500 13px system-ui,sans-serif;color:var(--mut)}
 .chip.on{border-color:transparent;color:#fff}
-.chip.spice.on{background:#d9372e}.chip.pop.on{background:var(--r)}.chip.chef.on{background:#7a4bc2}
+.chip.spice.on{background:#d9372e}.chip.pop.on{background:var(--r)}.chip.chef.on{background:#7a4bc2}.chip.new.on{background:#1f5c12}
 .warn{color:#b3261e;font-size:12.5px;margin:5px 0 0 28px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:12px;padding:12px 16px;font:600 16px system-ui,sans-serif;background:#e6eedd;color:var(--ink)}
 .btn.pri{background:var(--o);color:#fff}
@@ -144,6 +144,11 @@ input[type=range]{width:100%;accent-color:var(--o)}
     <h2>Quotes <span class="tag">one per line, used in rotation</span></h2>
     <textarea id="quotesBox" rows="10"></textarea>
     <div class="bar" style="margin-top:8px"><button class="btn sm" id="saveQuotes">Save quotes</button><button class="btn sm" id="resetQuotes">Restore default quotes</button></div>
+  </div>
+  <div class="card">
+    <h2>Quote font</h2>
+    <select id="qFont"></select>
+    <p class="hint">The quote text size is adjusted automatically so it always fits inside the orange box.</p>
   </div>
   <div class="card">
     <h2>Design images</h2>
@@ -328,10 +333,17 @@ const L = {
 const F = {
   dish:'"Sorts Mill Goudy", Georgia, "Times New Roman", serif',
   date:'Arimo, Arial, Helvetica, sans-serif',
-  quote:'Fredoka, "Trebuchet MS", system-ui, sans-serif',
+  get quote(){ return (QUOTE_FONTS[ls.get("hbc_qfont","courgette")]||QUOTE_FONTS.courgette).css; },
   badge:'Arimo, Arial, Helvetica, sans-serif'
 };
 
+const QUOTE_FONTS={
+  courgette:{label:"Courgette (elegant script)", css:'Courgette, "Brush Script MT", cursive', weight:400},
+  dancing:{label:"Dancing Script (flowing handwriting)", css:'"Dancing Script", "Brush Script MT", cursive', weight:700},
+  kalam:{label:"Kalam (friendly handwriting)", css:'Kalam, "Comic Sans MS", cursive', weight:400},
+  fredoka:{label:"Fredoka (rounded, like before)", css:'Fredoka, "Trebuchet MS", system-ui, sans-serif', weight:500}
+};
+const qWeight=()=>(QUOTE_FONTS[ls.get("hbc_qfont","courgette")]||QUOTE_FONTS.courgette).weight;
 /* ================= helpers ================= */
 const $ = s => document.querySelector(s);
 const keyOf = n => (n||"").trim().replace(/\s+/g," ").toLowerCase();
@@ -385,6 +397,7 @@ function rowHTML(i,withPhoto){
     <div class="opts">
       <button class="chip spice" data-s="0">No spice</button>
       <button class="chip pop">Popular</button>
+      <button class="chip new">New</button>
       <button class="chip chef">Chef's choice</button>
     </div>
     <div class="warn" hidden></div>
@@ -400,11 +413,12 @@ function buildRows(){
 function setSpice(row,s){ const b=row.querySelector(".spice"); b.dataset.s=s; b.textContent=SPICE_LABEL[s]; b.classList.toggle("on",s>0); }
 function wireRow(row,sec){
   const inp=row.querySelector(".dn");
-  inp.addEventListener("change",()=>{ const d=dishes.get(keyOf(inp.value)); if(d){ setSpice(row,d.spice||0); row.querySelector(".pop").classList.toggle("on",!!d.popular); } updateRowStatus(row); saveDraft(); });
+  inp.addEventListener("change",()=>{ const name=tidy(inp.value), d=dishes.get(keyOf(name)); if(d){ setSpice(row,d.spice||0); row.querySelector(".pop").classList.toggle("on",!!d.popular); } row.querySelector(".new").classList.toggle("on",!!name&&!d); updateRowStatus(row); saveDraft(); });
   inp.addEventListener("input",()=>{ updateRowStatus(row); });
   row.querySelector(".spice").onclick=e=>{ const s=(+e.currentTarget.dataset.s+1)%3; setSpice(row,s); saveDraft(); };
   row.querySelector(".pop").onclick=e=>{ e.currentTarget.classList.toggle("on"); saveDraft(); };
   row.querySelector(".chef").onclick=e=>{ e.currentTarget.classList.toggle("on"); saveDraft(); };
+  row.querySelector(".new").onclick=e=>{ e.currentTarget.classList.toggle("on"); saveDraft(); };
   const th=row.querySelector(".thumb");
   if(th) th.onclick=async()=>{
     const name=tidy(inp.value); if(!name){toast("Type the dish name first");inp.focus();return}
@@ -418,23 +432,23 @@ function updateRowStatus(row){
   const name=tidy(inp.value), d=dishes.get(keyOf(name));
   if(th){ if(d&&d.photo){th.style.backgroundImage=`url(${d.photo})`;th.textContent="";th.classList.add("has")} else {th.style.backgroundImage="";th.textContent="📷";th.classList.remove("has")} }
   let msg="";
-  if(name && !d) msg="New dish: it will be added to your list.";
+  if(name && !d) msg="New dish: it will be added to your list (New badge switched on).";
   if(th && name && !(d&&d.photo)) msg="No photo yet. Tap 📷 to add one.";
   w.textContent=msg; w.hidden=!msg;
 }
 function readForm(){
   const m={date:$("#date").value, quote:$("#quote").value.trim(), stickers:{milk:$("#stMilk").checked,home:$("#stHome").checked,fresh:$("#stFresh").checked}};
-  for(const sec of ["lunch","dinner"]) m[sec]=[...document.querySelectorAll(`#${sec}Card .row`)].map(r=>({name:tidy(r.querySelector(".dn").value),spice:+r.querySelector(".spice").dataset.s,popular:r.querySelector(".pop").classList.contains("on"),chef:r.querySelector(".chef").classList.contains("on")}));
+  for(const sec of ["lunch","dinner"]) m[sec]=[...document.querySelectorAll(`#${sec}Card .row`)].map(r=>({name:tidy(r.querySelector(".dn").value),spice:+r.querySelector(".spice").dataset.s,popular:r.querySelector(".pop").classList.contains("on"),isNew:r.querySelector(".new").classList.contains("on"),chef:r.querySelector(".chef").classList.contains("on")}));
   return m;
 }
 function fillForm(m){
   for(const sec of ["lunch","dinner"]){
     const rows=document.querySelectorAll(`#${sec}Card .row`);
-    rows.forEach((r,i)=>{ const it=(m[sec]&&m[sec][i])||{name:"",spice:0,popular:false,chef:false}; r.querySelector(".dn").value=it.name||""; setSpice(r,it.spice||0); r.querySelector(".pop").classList.toggle("on",!!it.popular); r.querySelector(".chef").classList.toggle("on",!!it.chef); updateRowStatus(r); });
+    rows.forEach((r,i)=>{ const it=(m[sec]&&m[sec][i])||{name:"",spice:0,popular:false,chef:false}; r.querySelector(".dn").value=it.name||""; setSpice(r,it.spice||0); r.querySelector(".pop").classList.toggle("on",!!it.popular); r.querySelector(".chef").classList.toggle("on",!!it.chef); r.querySelector(".new").classList.toggle("on",!!it.isNew && m.day===todayISO()); updateRowStatus(r); });
   }
   const st=m.stickers||{}; $("#stMilk").checked=st.milk!==false; $("#stHome").checked=st.home!==false; $("#stFresh").checked=st.fresh!==false;
 }
-function saveDraft(){ const m=readForm(); delete m.date; delete m.quote; ls.set("hbc_last",m); }
+function saveDraft(){ const m=readForm(); delete m.date; delete m.quote; m.day=todayISO(); ls.set("hbc_last",m); }
 function todayISO(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
 function fmtDate(iso){ const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; }
 
@@ -442,7 +456,7 @@ function fmtDate(iso){ const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; }
 async function fontsReady(){
   try{ await Promise.race([Promise.all([
     document.fonts.load(`72px ${F.dish}`), document.fonts.load(`700 74px ${F.date}`),
-    document.fonts.load(`500 66px ${F.quote}`), document.fonts.load(`700 36px ${F.badge}`)]), new Promise(r=>setTimeout(r,4000))]);
+    document.fonts.load(`${qWeight()} 66px ${F.quote}`), document.fonts.load(`700 36px ${F.badge}`)]), new Promise(r=>setTimeout(r,4000))]);
   }catch(e){}
 }
 function drawChili(ctx,x,cy,h){
@@ -455,13 +469,14 @@ function drawChili(ctx,x,cy,h){
   ctx.restore(); return 30*s;
 }
 function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-function drawPopular(ctx,x,cy,measureOnly){
-  ctx.save(); ctx.font=`700 36px ${F.badge}`; const tw=ctx.measureText("Popular").width; const w=tw+44, h=62;
-  if(!measureOnly){ roundRect(ctx,x,cy-h/2,w,h,h/2); ctx.fillStyle="#e5262d"; ctx.fill(); ctx.fillStyle="#fff"; ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.fillText("Popular",x+22,cy+2); }
+function drawBadge(ctx,text,color,x,cy,measureOnly){
+  ctx.save(); ctx.font=`700 36px ${F.badge}`; const tw=ctx.measureText(text).width; const w=tw+44, h=62;
+  if(!measureOnly){ roundRect(ctx,x,cy-h/2,w,h,h/2); ctx.fillStyle=color; ctx.fill(); ctx.fillStyle="#fff"; ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.fillText(text,x+22,cy+2); }
   ctx.restore(); return w;
 }
+const BADGE={popular:["Popular","#e5262d"], isNew:["New","#1f5c12"]};
 function iconsWidth(ctx,it){
-  let w=0; if(it.spice>0) w+=14+30+(it.spice>1?24:0); if(it.popular) w+=8+drawPopular(ctx,0,0,true); if(it.chef){const im=assetImgs.chefsmall; w+=8+80*im.width/im.height;} return w;
+  let w=0; if(it.spice>0) w+=14+30+(it.spice>1?24:0); for(const k of ["popular","isNew"]) if(it[k]) w+=8+drawBadge(ctx,...BADGE[k],0,0,true); if(it.chef){const im=assetImgs.chefsmall; w+=8+80*im.width/im.height;} return w;
 }
 function drawRow(ctx,it,cy){
   let size=L.nameSize; const iw=iconsWidth(ctx,it); const maxW=L.maxRowRight-L.nameX-iw;
@@ -470,7 +485,7 @@ function drawRow(ctx,it,cy){
   ctx.fillStyle="#2b2723"; ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.fillText(it.name,L.nameX,cy+4);
   let x=L.nameX+tw;
   if(it.spice>0){ x+=12; drawChili(ctx,x,cy,74); if(it.spice>1){ drawChili(ctx,x+24,cy,74); x+=24;} x+=30; }
-  if(it.popular){ x+=8; x+=drawPopular(ctx,x,cy-4); }
+  for(const k of ["popular","isNew"]) if(it[k]){ x+=8; x+=drawBadge(ctx,...BADGE[k],x,cy-4); }
   if(it.chef){ const im=assetImgs.chefsmall, h=84, w=h*im.width/im.height; x+=8; ctx.drawImage(im,x,cy-h/2-6,w,h); x+=w; }
   return {x:L.nameX-10, y:cy-56, w:x-L.nameX+30, h:112};
 }
@@ -503,13 +518,25 @@ function wrapLines(ctx,text,maxW){
   for(const w of words){ const t=cur?cur+" "+w:w; if(ctx.measureText(t).width<=maxW||!cur) cur=t; else { lines.push(cur); cur=w; } }
   if(cur) lines.push(cur); return lines;
 }
+function fitQuote(ctx,text){
+  // Shrinks the text until every line fits inside the orange frame (width and height).
+  const q=L.quote, padX=44, padY=22, maxW=q.w-padX*2, maxH=q.h-padY*2, wt=qWeight();
+  let size=72, lines, lh;
+  for(;size>=16;size-=1){
+    ctx.font=`${wt} ${size}px ${F.quote}`; lines=wrapLines(ctx,text,maxW); lh=size*1.22;
+    const widest=Math.max(...lines.map(l=>ctx.measureText(l).width));
+    if(lines.length*lh<=maxH && widest<=maxW) return {size,lines,lh,padX,ok:true};
+  }
+  return {size:16,lines,lh,padX,ok:false};
+}
 function drawQuote(ctx,text){
-  const q=L.quote, padX=46, maxW=q.w-padX*2;
-  let size=70, lines, lh;
-  for(;size>=34;size-=2){ ctx.font=`500 ${size}px ${F.quote}`; lines=wrapLines(ctx,text,maxW); lh=size*1.18; if(lines.length*lh<=q.h-36 && lines.every(l=>ctx.measureText(l).width<=maxW)) break; }
-  ctx.fillStyle="#fff"; ctx.textAlign="left"; ctx.textBaseline="middle";
-  const top=q.y+q.h/2-(lines.length*lh)/2+lh/2;
-  lines.forEach((l,i)=>ctx.fillText(l,q.x+padX,top+i*lh+2));
+  const q=L.quote, f=fitQuote(ctx,text);
+  ctx.save(); ctx.beginPath(); ctx.rect(q.x,q.y,q.w,q.h); ctx.clip();   // never spill outside the frame
+  ctx.font=`${qWeight()} ${f.size}px ${F.quote}`; ctx.fillStyle="#fff"; ctx.textAlign="left"; ctx.textBaseline="middle";
+  ctx.shadowColor="rgba(120,40,0,.25)"; ctx.shadowOffsetY=3; ctx.shadowBlur=4;
+  const top=q.y+q.h/2-(f.lines.length*f.lh)/2+f.lh/2;
+  f.lines.forEach((l,i)=>ctx.fillText(l,q.x+f.padX,top+i*f.lh+2));
+  ctx.restore(); return f;
 }
 async function renderMenu(m){
   await fontsReady();
@@ -542,7 +569,7 @@ async function renderMenu(m){
     else notes.push(`Not enough free space for the ${ASSET_LABELS[k].replace(" sticker","")} sticker, so it was left out.`);
   }
   // quote
-  if(m.quote) drawQuote(ctx,m.quote);
+  if(m.quote){ const f=drawQuote(ctx,m.quote); if(!f.ok) notes.push("The quote is very long, so part of it may be cut off. Try a shorter one."); else if(f.size<44) notes.push("The quote is long, so it was printed in smaller text to fit."); }
   return {canvas:cv, notes};
 }
 
@@ -682,6 +709,9 @@ async function init(){
   $("#saveQuotes").onclick=()=>{ const q=$("#quotesBox").value.split("\n").map(s=>s.trim()).filter(Boolean); ls.set("hbc_quotes",q); toast(`Saved ${q.length} quotes`); };
   $("#resetQuotes").onclick=()=>{ ls.set("hbc_quotes",null); $("#quotesBox").value=DEFAULT_QUOTES.join("\n"); toast("Default quotes restored"); };
   $("#outSize").value=String(ls.get("hbc_scale",0.75)); $("#outSize").onchange=e=>ls.set("hbc_scale",parseFloat(e.target.value));
+  const qf=$("#qFont"); for(const [k,v] of Object.entries(QUOTE_FONTS)){ const o=document.createElement("option"); o.value=k; o.textContent=v.label; qf.appendChild(o); }
+  qf.value=ls.get("hbc_qfont","courgette"); qf.onchange=e=>{ ls.set("hbc_qfont",e.target.value); toast("Quote font saved"); };
+  $("#quote").style.fontFamily=F.quote; qf.addEventListener("change",()=>$("#quote").style.fontFamily=F.quote);
   $("#backupBtn").onclick=backup; $("#restoreBtn").onclick=restore;
   renderAssets();
   if("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});

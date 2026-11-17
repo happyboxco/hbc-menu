@@ -1,5 +1,5 @@
 // Keeps the app working offline. Network first, so updates show up automatically.
-const CACHE = "hbc-menu-v1";
+const CACHE = "hbc-menu-v2";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE))); self.skipWaiting(); });
 self.addEventListener("activate", e => {
